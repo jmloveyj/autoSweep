@@ -66,7 +66,8 @@ class Map(nx.Graph,Canvas):
         (edgeStartX,edgeEndX,edgeStartY,edgeEndY) = get1StepCleanedRegion((self.currentX,self.currentY),robotDirection)
         for i in range(edgeStartX, edgeEndX+1):
             for j in range(edgeStartY, edgeEndY+1):
-                self.im.put(COLOR_CLEANED,(i,j))
+                if(self.im.get(i,j)=="220 220 220"):
+                    self.im.put(COLOR_CLEANED,(i,j))
         
         self.currentX = self.currentX + DIRECTION_DELTA[robotDirection][0];
         self.currentY = self.currentY + DIRECTION_DELTA[robotDirection][1]
@@ -101,15 +102,16 @@ class Map(nx.Graph,Canvas):
       
         for item in self.uncoveredReg:
             if item['up']:
-                distance, point= self.__getDistanceFromPoint2Edge(currentPos, item['up'])
+                distance, point= self.__getPathFromPoint2Edge(currentPos, item['up'])
             else:
-                distance,point = self.__getDistanceFromPoint2Edge(currentPos, item['down'])
+                distance,point = self.__getPathFromPoint2Edge(currentPos, item['down'])
             if (distance < shortestDistance):
                 shortestDistance = distance
                 nextRegPoint = point
                 nextReg = item
             if shortestDistance==0:
                 break
+    
         path = self.__getPath(currentPos, nextRegPoint)
        
         return {'path':path, 'targetRegion':nextReg}
@@ -140,7 +142,7 @@ class Map(nx.Graph,Canvas):
         self.combineCurrentBoundary()
         
 
-    def __getDistanceFromPoint2Edge(self,point, edge):
+    def __getPathFromPoint2Edge(self,point, edge):
         distance1 = calculateDistance(point, edge[0])
         distance2 = calculateDistance(point, edge[1])
 
@@ -155,8 +157,7 @@ class Map(nx.Graph,Canvas):
         current = start
 
         path.append(start)
-
-            
+         
         while (current != end):
             neighbourList = self.__getNeighbour(current)
             F = 999
@@ -213,11 +214,13 @@ class Map(nx.Graph,Canvas):
 
     def __getNeighbour(self,current):
         neighbourList =[]
-
-        neighbourList.append((current[0], current[1]-1))
-        neighbourList.append((current[0]+1, current[1]))
-        neighbourList.append((current[0], current[1]+1))
         neighbourList.append((current[0]-1, current[1]))
+        neighbourList.append((current[0], current[1]+1))
+        neighbourList.append((current[0]+1, current[1]))
+        neighbourList.append((current[0], current[1]-1))
+        
+        
+       
         return neighbourList
 
 
@@ -241,10 +244,10 @@ class Map(nx.Graph,Canvas):
         edge = None
         if(region['up']):
             edge = region['up']
-            edge = ((edge[0][0],edge[0][1]+1), (edge[1][0],edge[1][1]+1))
+            edge = ((edge[0][0],edge[0][1]+2), (edge[1][0],edge[1][1]+2))
         else:
             edge = region['down']
-            edge = ((edge[0][0],edge[0][1]-1), (edge[1][0],edge[1][1]-1))
+            edge = ((edge[0][0],edge[0][1]-2), (edge[1][0],edge[1][1]-2))
 
 
         for i in range(edge[0][0], edge[1][0]+1):
@@ -255,7 +258,6 @@ class Map(nx.Graph,Canvas):
     def combineCurrentBoundary(self):
         if not self.currentReg:
             return
-
         if not self.currentReg['up']:
             region = self.__findClosedRegion(self.currentReg['down'], 'up')
             self.currentReg['up'] = region['up']
@@ -539,7 +541,7 @@ class ZigzagMoveCtl(MoveCtl):
             startNode = self.currentSlice['criticality'][0]
             secondNode = self.currentSlice['criticality'][1]
             startDistance = calculateDistance(startNode['pos'], secondNode['pos'])
-            if (startDistance < (ROBOT_SIZE+1)):
+            if (startDistance < (ROBOT_SIZE+3)):
                 startNode['rangeStatus'] = secondNode['rangeStatus']
                 self.currentSlice['criticality'].remove(secondNode)
 
@@ -547,7 +549,7 @@ class ZigzagMoveCtl(MoveCtl):
             endNode = self.currentSlice['criticality'][-1]
             secondEndNode = self.currentSlice['criticality'][-2]
             endDistance = calculateDistance(endNode['pos'], secondEndNode['pos'])
-            if (endDistance < (ROBOT_SIZE+1)):
+            if (endDistance < (ROBOT_SIZE+3)):
                 endNode['rangeStatus'] = secondEndNode['rangeStatus']
                 self.currentSlice['criticality'].remove(secondEndNode)
 
@@ -692,6 +694,7 @@ class Robot():
 
     def checkProgress(self):
         if self.map.ifFinished():
+            self.stateText = "清扫结束"
             self.stopMove()
             return
         
