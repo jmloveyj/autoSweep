@@ -12,7 +12,10 @@ COLOR_CLEANED = "#FFFFFF"
 COLOR_BOUNDARY = "#FEFFFF"
 
 def calculateDistance(start,end):
-        return abs(start[0] - end[0])+abs(start[1] - end[1])
+    return abs(start[0] - end[0])+abs(start[1] - end[1])
+
+def calculatePonit2EdgeDistance(point, edge):
+    return abs(point[1] - edge[0][1])
 
 
 def get1StepCleanedRegion(robotPosition,robotDirection):
@@ -253,14 +256,14 @@ class Map(nx.Graph,Canvas):
         if not self.currentReg:
             return
 
-        print self.uncoveredReg
-
         if not self.currentReg['up']:
             region = self.__findClosedRegion(self.currentReg['down'], 'up')
             self.currentReg['up'] = region['up']
             self.__delUncoveredReg(region)
         elif not self.currentReg['down']:
             region = self.__findClosedRegion(self.currentReg['up'], 'down')
+            
+            
             self.currentReg['down'] = region['down']
             self.__delUncoveredReg(region)
     
@@ -270,6 +273,7 @@ class Map(nx.Graph,Canvas):
 
 
     def __findClosedRegion(self,edge, direction):
+        currentPos = (self.currentX, self.currentY)
         anotherRegion = ()
         for item in self.uncoveredReg:
             if not item[direction]:
@@ -283,7 +287,7 @@ class Map(nx.Graph,Canvas):
                 anotherRegion = item
                 continue
 
-            if calculateDistance(item[direction][0],edge[0])< calculateDistance(anotherRegion[direction][0],edge[0]):
+            if calculatePonit2EdgeDistance(currentPos,item[direction])< calculatePonit2EdgeDistance(currentPos,anotherRegion[direction]):
                 anotherRegion = item
 
         return anotherRegion
@@ -514,8 +518,6 @@ class ZigzagMoveCtl(MoveCtl):
         self.currentSlice['end'] = self.robot.getCurrentPos()
 
         self.__checkCriticality()
-     
-        self.__regularCriticality()
 
         self.__filterEnd()
 
@@ -523,6 +525,7 @@ class ZigzagMoveCtl(MoveCtl):
         if(len(self.currentSlice['criticality']) ==2) and \
         (self.currentSlice['criticality'][0]['rangeStatus'] == (False,False)):
             return
+
         
         self.robot.buildBoundary(self.currentSlice['criticality'])
         if(self.robot.ifCurrentRegionFinished()):
@@ -532,19 +535,19 @@ class ZigzagMoveCtl(MoveCtl):
 
     #避免球形，斜边，凹形slice边界造成短距离的障碍物误判
     def __filterEnd(self):
-        print self.currentSlice['criticality']
         if (len(self.currentSlice['criticality']) > 2):
             startNode = self.currentSlice['criticality'][0]
             secondNode = self.currentSlice['criticality'][1]
             startDistance = calculateDistance(startNode['pos'], secondNode['pos'])
-            if (startDistance < (ROBOT_SIZE*3)):
+            if (startDistance < (ROBOT_SIZE+1)):
                 startNode['rangeStatus'] = secondNode['rangeStatus']
                 self.currentSlice['criticality'].remove(secondNode)
 
+        if (len(self.currentSlice['criticality']) > 2):
             endNode = self.currentSlice['criticality'][-1]
             secondEndNode = self.currentSlice['criticality'][-2]
             endDistance = calculateDistance(endNode['pos'], secondEndNode['pos'])
-            if (endDistance < (ROBOT_SIZE*3)):
+            if (endDistance < (ROBOT_SIZE+1)):
                 endNode['rangeStatus'] = secondEndNode['rangeStatus']
                 self.currentSlice['criticality'].remove(secondEndNode)
 
@@ -553,25 +556,6 @@ class ZigzagMoveCtl(MoveCtl):
                 self.currentSlice['criticality'][0]['rangeStatus'] = (False,False)
                 self.currentSlice['criticality'][1]['rangeStatus'] = (False,False)
 
-
-
-    def __regularCriticality(self):
-
-        # 中间的关键点改成障碍物的点
-        length = len(self.currentSlice['criticality'])
-        for i in range(1, length-1):
-            if self.currentSlice['criticality'][i]['rangeStatus'] == (False,False):
-
-                self.currentSlice['criticality'][i]['rangeStatus'] = \
-                    self.currentSlice['criticality'][i-1]['rangeStatus']
-
-
-        # 点的顺序从东到西            
-        if(self.robot.currentDirection == "W"):
-          
-           self.currentSlice['criticality'].reverse()
-      
- 
         
     def __getLastPos(self,currentPos):
         currentDirection = self.robot.currentDirection
@@ -731,8 +715,6 @@ class Robot():
         length = len(criticality)
         nodeList =[]
 
-        print criticality
-
         for i in range(length):
             if(i==0 or i==(length-1)):
                 if criticality[i]['rangeStatus'] == (False,False):
@@ -743,12 +725,15 @@ class Robot():
                 nodeList.append(self.map.addNode(criticality[i]['pos'],'obstacle'))
     
         for i in range(length-1):
-            if criticality[i]['rangeStatus'] == (False,False) or  criticality[i+1]['rangeStatus'] == (False,False):
+            if criticality[i]['rangeStatus'] == (False,False):
                 self.map.addEdge(nodeList[i],nodeList[i+1],"free")
-            elif criticality[i]['rangeStatus'] == (True,False) or criticality[i+1]['rangeStatus'] == (True,False):
+            elif criticality[i]['rangeStatus'] == (True,False):
                 self.map.addEdge(nodeList[i],nodeList[i+1],"upObtacle")
             else:
                 self.map.addEdge(nodeList[i],nodeList[i+1],"downObtacle")
+
+        if(self.currentDirection == "W"):
+            nodeList.reverse()
 
         self.map.updateRegion(nodeList)
 
@@ -869,8 +854,7 @@ class Env(Canvas):
 
         for i in range(edgeStartX, edgeEndX+1):
             for j in range(edgeStartY, edgeEndY+1):
-                if(self.im.get(i,j)=="0 0 0"):
-                    print "over obtacle ! (%d,%d)" %(i,j)
+                assert(self.im.get(i,j)!="0 0 0")
                 if(self.im.get(i,j)=="255 255 255"):
                     self.im.put(COLOR_COVERED,(i,j))
                     self.clearedArea+=1
@@ -986,7 +970,7 @@ class App():
         sweepFrame.grid(row=0, column = 0)
         title = Label(sweepFrame,text="清扫视图",font=("Times", "16", "bold italic"))
         title.pack()
-        self.env = Env(sweepFrame, "/Users/jinming/Downloads/pathplan/multiRoom.pgm")
+        self.env = Env(sweepFrame, "./multiRoom.pgm")
         
  
 
@@ -998,7 +982,7 @@ class App():
         title.pack()
 
 
-        self.map=Map(graphFrame,"/Users/jinming/Downloads/pathplan/room_grey.pgm")
+        self.map=Map(graphFrame,"./room_grey.pgm")
 
 
     def showCommand(self):
