@@ -102,9 +102,9 @@ class Map(nx.Graph,Canvas):
       
         for item in self.uncoveredReg:
             if item['up']:
-                distance, point= self.__getPathFromPoint2Edge(currentPos, item['up'])
+                distance, point= self.__getDistanceFromPoint2Edge(currentPos, item['up'])
             else:
-                distance,point = self.__getPathFromPoint2Edge(currentPos, item['down'])
+                distance,point = self.__getDistanceFromPoint2Edge(currentPos, item['down'])
             if (distance < shortestDistance):
                 shortestDistance = distance
                 nextRegPoint = point
@@ -142,7 +142,7 @@ class Map(nx.Graph,Canvas):
         self.combineCurrentBoundary()
         
 
-    def __getPathFromPoint2Edge(self,point, edge):
+    def __getDistanceFromPoint2Edge(self,point, edge):
         distance1 = calculateDistance(point, edge[0])
         distance2 = calculateDistance(point, edge[1])
 
