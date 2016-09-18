@@ -29,8 +29,8 @@ def getConverseDirection(direction):
 
 def get1StepCleanedRegion(robotPosition,robotDirection, pixelNum = 1):
     if(robotDirection == "W"):
-        edgeStartX = robotPosition[0] - int(ROBOT_SIZE/2) -1
-        edgeEndX = robotPosition[0] - int(ROBOT_SIZE/2) -pixelNum
+        edgeStartX = robotPosition[0] - int(ROBOT_SIZE/2) - pixelNum
+        edgeEndX = robotPosition[0] - int(ROBOT_SIZE/2) -1
         edgeStartY = robotPosition[1] - int(ROBOT_SIZE/2)
         edgeEndY = robotPosition[1] + int(ROBOT_SIZE/2)
     if(robotDirection == "E"):
@@ -46,8 +46,8 @@ def get1StepCleanedRegion(robotPosition,robotDirection, pixelNum = 1):
     if(robotDirection == "N"):
         edgeStartX = robotPosition[0] - int(ROBOT_SIZE/2)
         edgeEndX = robotPosition[0] + int(ROBOT_SIZE/2)
-        edgeStartY = robotPosition[1] - int(ROBOT_SIZE/2) -1
-        edgeEndY = robotPosition[1] - int(ROBOT_SIZE/2) -pixelNum   
+        edgeStartY = robotPosition[1] - int(ROBOT_SIZE/2) -pixelNum
+        edgeEndY = robotPosition[1] - int(ROBOT_SIZE/2) -1   
     return (edgeStartX,edgeEndX,edgeStartY,edgeEndY)
             
          
@@ -134,11 +134,10 @@ class Map(nx.Graph,Canvas):
         currentPos = (self.currentX, self.currentY)
         (edgeStartX, edgeEndX, edgeStartY, edgeEndY) = get1StepCleanedRegion(currentPos, direction, pixelNum = ROBOT_SIZE)
         
-        if ((edgeStartX <1) or (edgeEndX> Env.WIDTH-2) or (edgeStartY <1) or (edgeEndY>Env.HEIGHT-2)):
-            return False
-
+       
         for i in range(edgeStartX, edgeEndX+1):
             for j in range(edgeStartY, edgeEndY+1):
+     
                 if(self.im.get(i,j)=="253 255 255"):
                     return True
         return False
@@ -539,6 +538,7 @@ class ZigzagMoveCtl(MoveCtl):
 
                 self.__handleSliceBegin()
                 self.ifSliceDeadHead = False
+       
                 
             else:
                 self.__handleSliceEnd()
@@ -604,6 +604,7 @@ class ZigzagMoveCtl(MoveCtl):
             self.robot.currentDirection = getConverseDirection(self.lastSliceDirection)
             self.__act = self.__processSlice
             self.ifSliceDeadHead = True 
+
             return False
 
         ifBump = self.robot.ifBump()
@@ -624,6 +625,7 @@ class ZigzagMoveCtl(MoveCtl):
             self.__act = self.__processSlice
             if(self.__ifBackEmpty()):
                 self.ifSliceDeadHead = True
+       
             else:
       
                 self.__handleSliceBegin()
@@ -632,12 +634,13 @@ class ZigzagMoveCtl(MoveCtl):
         return True
 
     def __ifBackEmpty(self):
-        if(self.robot.map.ifCloseToVirtualWall(self.lastSliceDirection)):
-            return False
+        
 
         range = self.robot.getRangeData()
         backSpace = range[self.lastSliceDirection]
-        if (backSpace > ROBOT_SIZE*2):
+        if (backSpace > ROBOT_SIZE*3):
+            if(self.robot.map.ifCloseToVirtualWall(self.lastSliceDirection)):
+                return False
             return True
 
         return False
