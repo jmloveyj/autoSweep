@@ -15,31 +15,39 @@ COLOR_DOOR = "#FDFFFF"
 def calculateDistance(start,end):
     return abs(start[0] - end[0])+abs(start[1] - end[1])
 
-def calculatePonit2EdgeDistance(point, edge):
-    return abs(point[1] - edge[0][1])
+
+def getConverseDirection(direction):
+    if(direction == "E"):
+        return "W"
+    if(direction == "W"):
+        return "E"
+    if(direction == "N"):
+        return "S"
+    if(direction == "S"):
+        return "N"
 
 
-def get1StepCleanedRegion(robotPosition,robotDirection):
+def get1StepCleanedRegion(robotPosition,robotDirection, pixelNum = 1):
     if(robotDirection == "W"):
         edgeStartX = robotPosition[0] - int(ROBOT_SIZE/2) -1
-        edgeEndX = robotPosition[0] - int(ROBOT_SIZE/2) -1
+        edgeEndX = robotPosition[0] - int(ROBOT_SIZE/2) -pixelNum
         edgeStartY = robotPosition[1] - int(ROBOT_SIZE/2)
         edgeEndY = robotPosition[1] + int(ROBOT_SIZE/2)
     if(robotDirection == "E"):
         edgeStartX = robotPosition[0] + int(ROBOT_SIZE/2) +1
-        edgeEndX = robotPosition[0] + int(ROBOT_SIZE/2) +1
+        edgeEndX = robotPosition[0] + int(ROBOT_SIZE/2) +pixelNum
         edgeStartY = robotPosition[1] - int(ROBOT_SIZE/2)
         edgeEndY = robotPosition[1] + int(ROBOT_SIZE/2)
     if(robotDirection == "S"):
         edgeStartX = robotPosition[0] - int(ROBOT_SIZE/2)
         edgeEndX = robotPosition[0] + int(ROBOT_SIZE/2)
         edgeStartY = robotPosition[1] + int(ROBOT_SIZE/2) +1
-        edgeEndY = robotPosition[1] +int(ROBOT_SIZE/2) +1
+        edgeEndY = robotPosition[1] +int(ROBOT_SIZE/2) +pixelNum
     if(robotDirection == "N"):
         edgeStartX = robotPosition[0] - int(ROBOT_SIZE/2)
         edgeEndX = robotPosition[0] + int(ROBOT_SIZE/2)
         edgeStartY = robotPosition[1] - int(ROBOT_SIZE/2) -1
-        edgeEndY = robotPosition[1] - int(ROBOT_SIZE/2) -1   
+        edgeEndY = robotPosition[1] - int(ROBOT_SIZE/2) -pixelNum   
     return (edgeStartX,edgeEndX,edgeStartY,edgeEndY)
             
          
@@ -54,6 +62,7 @@ class Map(nx.Graph,Canvas):
         self.pack(side=RIGHT)
         self.uncoveredReg =[]
         self.uncoveredRoom = []
+        self.currentRoom = None
         self.coveredReg =[]
         self.currentReg = None
         self.currentX = int(ROBOT_SIZE/2) +GAP  # robot center coordinate because robot size is 5*5
@@ -74,9 +83,11 @@ class Map(nx.Graph,Canvas):
         self.currentX = self.currentX + DIRECTION_DELTA[robotDirection][0];
         self.currentY = self.currentY + DIRECTION_DELTA[robotDirection][1]
 
-    def ifFinished(self):
+    def ifRoomFinished(self):
         return not self.uncoveredReg
 
+    def ifFinished(self):
+        return not self.uncoveredRoom
 
 
     def setCurrentPos(self,x,y):
@@ -103,15 +114,66 @@ class Map(nx.Graph,Canvas):
 
 
 
-    def buildVirtalWall(self,start, end):
-        for i in range(start[0],end[0]+1):
-            for j in range(start[1],end[1]+1):
-                self.im.put(COLOR_DOOR,(i,j))
+    def buildVirtalWall(self,start, end,currentDirection):
+        if start[1] > end[1]:
+            upLimit = start[1]
+            downLimit = end[1]
+        else:
+            upLimit = end[1]
+            downLimit = start[1]
 
+        for i in range(start[0],end[0]+1):
+            for j in range(downLimit,upLimit+1):
+                self.im.put(COLOR_DOOR,(i,j))
+       
+
+        self.currentRoom = {'pos':start, 'direction':getConverseDirection(currentDirection)}
+        self.uncoveredRoom.append({'pos':start, 'direction':currentDirection})
+
+    def ifCloseToVirtualWall(self,direction):
+        currentPos = (self.currentX, self.currentY)
+        (edgeStartX, edgeEndX, edgeStartY, edgeEndY) = get1StepCleanedRegion(currentPos, direction, pixelNum = ROBOT_SIZE)
+        
+        if ((edgeStartX <1) or (edgeEndX> Env.WIDTH-2) or (edgeStartY <1) or (edgeEndY>Env.HEIGHT-2)):
+            return False
+
+        for i in range(edgeStartX, edgeEndX+1):
+            for j in range(edgeStartY, edgeEndY+1):
+                if(self.im.get(i,j)=="253 255 255"):
+                    return True
+        return False
+
+
+
+    def setCurrentRoom(self,room):
+        self.currentRoom = room
+        self.uncoveredRoom.remove(room)
 
     def setCurrentRegion(self,region):
         self.currentReg = region
         self.__delUncoveredReg(region)
+
+
+    def getRouteToNextRoom(self):
+        currentPos = (self.currentX, self.currentY)
+
+        shortestDistance = 999
+        nextRoom = None
+      
+        for item in self.uncoveredRoom:
+        
+            distance= calculateDistance(currentPos, item['pos'])
+            
+            if (distance < shortestDistance):
+                shortestDistance = distance
+                nextRoom = item
+            if shortestDistance==0:
+                break
+    
+        path = self.__getPath(currentPos, nextRoom['pos'])
+       
+        return {'path':path, 'targetRoom':nextRoom, 'targetRegion':{}}
+
 
     # route = {path: [position, position], sweepDirection:"N"}
     def getRouteToNextRegionBoundary(self):
@@ -120,8 +182,7 @@ class Map(nx.Graph,Canvas):
         shortestDistance = 999
         nextRegPoint = None
         nextReg = None
-        nextRegsweepDirection = "N"
-      
+  
         for item in self.uncoveredReg:
             if item['up']:
                 distance, point= self.__getDistanceFromPoint2Edge(currentPos, item['up'])
@@ -136,7 +197,7 @@ class Map(nx.Graph,Canvas):
     
         path = self.__getPath(currentPos, nextRegPoint)
        
-        return {'path':path, 'targetRegion':nextReg}
+        return {'path':path, 'targetRegion':nextReg,'targetRoom':{}}
 
         
 
@@ -179,6 +240,7 @@ class Map(nx.Graph,Canvas):
         current = start
 
         path.append(start)
+
          
         while (current != end):
             neighbourList = self.__getNeighbour(current)
@@ -197,6 +259,7 @@ class Map(nx.Graph,Canvas):
                     F = weight
                     nextPoint = neighbourPoint
             current = nextPoint
+       
             path.append(current)
  
         return path
@@ -236,10 +299,10 @@ class Map(nx.Graph,Canvas):
 
     def __getNeighbour(self,current):
         neighbourList =[]
-        neighbourList.append((current[0]-1, current[1]))
-        neighbourList.append((current[0], current[1]+1))
         neighbourList.append((current[0]+1, current[1]))
         neighbourList.append((current[0], current[1]-1))
+        neighbourList.append((current[0]-1, current[1]))
+        neighbourList.append((current[0], current[1]+1))
         
         
        
@@ -297,7 +360,6 @@ class Map(nx.Graph,Canvas):
 
 
     def __findClosedRegion(self,edge, direction):
-        currentPos = (self.currentX, self.currentY)
         anotherRegion = ()
         for item in self.uncoveredReg:
             if not item[direction]:
@@ -311,7 +373,7 @@ class Map(nx.Graph,Canvas):
                 anotherRegion = item
                 continue
 
-            if calculatePonit2EdgeDistance(currentPos,item[direction])< calculatePonit2EdgeDistance(currentPos,anotherRegion[direction]):
+            if calculateDistance(edge[0],item[direction][0])< calculateDistance(edge[0],anotherRegion[direction][0]):
                 anotherRegion = item
 
         return anotherRegion
@@ -404,6 +466,26 @@ class MoveCtl():
         self.robot.checkProgress()
 
     
+class FindCornerCtl(MoveCtl):
+    def __init__(self,robot,stepDirection):
+        MoveCtl.__init__(self, robot)
+        self.robot.currentDirection = stepDirection
+        self.stepNum =0
+
+    def decideNextMove(self):
+        if(self.stepNum < ROBOT_SIZE):
+            self.stepNum = self.stepNum +1
+            return True
+        else:
+            self.robot.currentDirection = 'N'
+
+        ifBump = self.robot.ifBump()
+
+        if(ifBump):
+            self.robot.moveCtl = ZigzagMoveCtl(self.robot,'S')
+            return False
+
+        return True
 
 
 class ZigzagMoveCtl(MoveCtl):
@@ -418,6 +500,7 @@ class ZigzagMoveCtl(MoveCtl):
         self.currentSlice = {}
         self.ifSliceDeadHead = False
         self.ifLastSlice = False
+        self.robot.stateText = "弓形清扫"
 
         if (ifAlterSliceAtFirst):
             self.robot.currentDirection = sweepDirection
@@ -430,7 +513,7 @@ class ZigzagMoveCtl(MoveCtl):
 
     def __ifInCornerAtStart(self):
         range = self.robot.getRangeData()
-        if(range[self.__getConverseDirection(self.robot.currentDirection)]> GAP):
+        if(range[getConverseDirection(self.robot.currentDirection)]> GAP):
             return False
         else:
             return True
@@ -450,7 +533,7 @@ class ZigzagMoveCtl(MoveCtl):
                 return False
             if(self.ifSliceDeadHead):
             
-                self.robot.currentDirection = self.__getConverseDirection(self.robot.currentDirection) 
+                self.robot.currentDirection = getConverseDirection(self.robot.currentDirection) 
                 self.lastSliceDirection = self.robot.currentDirection
                 self.__act = self.__processSlice
 
@@ -470,13 +553,13 @@ class ZigzagMoveCtl(MoveCtl):
                 self.robot.currentDirection = self.sweepDirection
             return False
         if(self.__ifLeftRightDoorFound()):
+            
+            self.__buildVirtalWall()
             self.__handleSliceEnd()
             self.alterMaxDistance = ROBOT_SIZE
             self.lastSliceDirection = self.robot.currentDirection
-            self.robot.currentDirection = self.__getConverseDirection(self.lastSliceDirection)
+            self.robot.currentDirection = getConverseDirection(self.lastSliceDirection)
             self.__act = self.__processAlterSlice
-
-            self.__buildVirtalWall()
             return False
 
         if(not self.ifSliceDeadHead):
@@ -485,13 +568,12 @@ class ZigzagMoveCtl(MoveCtl):
 
     def __buildVirtalWall(self):
         point = self.currentSlice['doorPoint'][-1]['pos']
+        start = point
         if(self.sweepDirection == "S"):
-            start = point
             end = (start[0], start[1] + ROBOT_SIZE*10) 
         else:
-            end = point
-            start = (end[0], end[1] - ROBOT_SIZE*10)
-        self.robot.map.buildVirtalWall(start,end)
+            end = (start[0], start[1] - ROBOT_SIZE*10)
+        self.robot.map.buildVirtalWall(start,end,self.robot.currentDirection)
 
     def __ifLeftRightDoorFound(self):
         if (not self.currentSlice):
@@ -503,6 +585,7 @@ class ZigzagMoveCtl(MoveCtl):
             return False
 
         if(calculateDistance(self.currentSlice['doorPoint'][0]['pos'],self.currentSlice['start'])<ROBOT_SIZE):
+            self.currentSlice['doorPoint'] =[]
             return False
 
         corridorWidth = abs(self.currentSlice['doorPoint'][1]['pos'][0] - self.currentSlice['doorPoint'][0]['pos'][0])
@@ -510,6 +593,7 @@ class ZigzagMoveCtl(MoveCtl):
         if (corridorWidth<ROBOT_SIZE*3) and (corridorWidth>ROBOT_SIZE):
             return True
 
+        self.currentSlice['doorPoint'] =[]
         return False
 
 
@@ -517,28 +601,28 @@ class ZigzagMoveCtl(MoveCtl):
     def __processAlterSlice(self):
         if(self.robot.ifTouchBoundary()):
             self.ifLastSlice = True
-            self.robot.currentDirection = self.__getConverseDirection(self.lastSliceDirection)
+            self.robot.currentDirection = getConverseDirection(self.lastSliceDirection)
             self.__act = self.__processSlice
-            self.ifSliceDeadHead = True
+            self.ifSliceDeadHead = True 
             return False
 
         ifBump = self.robot.ifBump()
         if(ifBump):
             if(self.alterDistance>0):
-                self.robot.currentDirection = self.__getConverseDirection(self.lastSliceDirection)
+                self.robot.currentDirection = getConverseDirection(self.lastSliceDirection)
                 self.__act = self.__processSlice
 
                 self.__handleSliceBegin()
             else:
-                self.robot.currentDirection = self.__getConverseDirection(self.lastSliceDirection)
+                self.robot.currentDirection = getConverseDirection(self.lastSliceDirection)
                 self.backDistance = 0
                 self.__act = self.__processBackOneRobot
             return False
 
         if(self.alterDistance == self.alterMaxDistance):
-            self.robot.currentDirection = self.__getConverseDirection(self.lastSliceDirection)
+            self.robot.currentDirection = getConverseDirection(self.lastSliceDirection)
             self.__act = self.__processSlice
-            if(not self.robot.ifBump(direction=self.lastSliceDirection)):
+            if(self.__ifBackEmpty()):
                 self.ifSliceDeadHead = True
             else:
       
@@ -546,6 +630,21 @@ class ZigzagMoveCtl(MoveCtl):
             return False
         self.alterDistance +=1
         return True
+
+    def __ifBackEmpty(self):
+        if(self.robot.map.ifCloseToVirtualWall(self.lastSliceDirection)):
+            return False
+
+        range = self.robot.getRangeData()
+        backSpace = range[self.lastSliceDirection]
+        if (backSpace > ROBOT_SIZE*2):
+            return True
+
+        return False
+
+
+
+
     
 
     def __processBackOneRobot(self):
@@ -607,17 +706,24 @@ class ZigzagMoveCtl(MoveCtl):
             startNode = self.currentSlice['criticality'][0]
             secondNode = self.currentSlice['criticality'][1]
             startDistance = calculateDistance(startNode['pos'], secondNode['pos'])
-            if (startDistance < (ROBOT_SIZE+3)):
+            if(startNode['rangeStatus'] != (False,False) and secondNode['rangeStatus'] != (False,False)):
+                self.currentSlice['criticality'][0]['rangeStatus'] = (False,False)
+            if (startDistance < (ROBOT_SIZE)):
                 startNode['rangeStatus'] = secondNode['rangeStatus']
                 self.currentSlice['criticality'].remove(secondNode)
 
         if (len(self.currentSlice['criticality']) > 2):
             endNode = self.currentSlice['criticality'][-1]
             secondEndNode = self.currentSlice['criticality'][-2]
+            thirdEndNode = self.currentSlice['criticality'][-3]
             endDistance = calculateDistance(endNode['pos'], secondEndNode['pos'])
-            if (endDistance < (ROBOT_SIZE+3)):
+            if(thirdEndNode['rangeStatus'] != (False,False) and secondEndNode['rangeStatus'] != (False,False)):
+                self.currentSlice['criticality'][-1]['rangeStatus'] = (False,False)
+                self.currentSlice['criticality'][-2]['rangeStatus'] = (False,False)
+            if (endDistance < (ROBOT_SIZE)):
                 endNode['rangeStatus'] = secondEndNode['rangeStatus']
                 self.currentSlice['criticality'].remove(secondEndNode)
+
 
         if (len(self.currentSlice['criticality']) == 2):
             if(self.currentSlice['criticality'][0]['rangeStatus'] != self.currentSlice['criticality'][1]['rangeStatus']):
@@ -644,6 +750,12 @@ class ZigzagMoveCtl(MoveCtl):
         
         ifUpClose = (range['up'] < ROBOT_SIZE+2)
         ifBelowClose = (range['down'] < ROBOT_SIZE+2)
+
+        if(ifUpClose and ifBelowClose):
+            if(range['up']>range['down']):
+                ifUpClose = False 
+            else:
+                ifBelowClose = False
         # ifForwardClose = (range['head'] < ROBOT_SIZE+GAP+1)
         upDownSpace = range['up'] + range['down']
         ifUpDownClose = (upDownSpace<ROBOT_SIZE*10)
@@ -672,15 +784,7 @@ class ZigzagMoveCtl(MoveCtl):
 
         return 
 
-    def __getConverseDirection(self,direction):
-        if(direction == "E"):
-            return "W"
-        if(direction == "W"):
-            return "E"
-        if(direction == "N"):
-            return "S"
-        if(direction == "S"):
-            return "N"
+
     # return range of slice direction, sweep direction and anti-sweep direction
     def __getRangeData(self):
         range = self.robot.getRangeData()
@@ -696,11 +800,15 @@ class NavMoveCtl(MoveCtl):
         MoveCtl.__init__(self, robot)
         self.path = route['path']
         self.targetRegion = route['targetRegion']
+        self.targetRoom = route['targetRoom']
         self.pathIndex = 1
 
     def decideNextMove(self):
         if (self.pathIndex == len(self.path)):
-            self.__startSweep()
+            if(self.targetRegion):
+                self.__startSweep()
+            elif(self.targetRoom):
+                self.__findCorner()
             return False
 
         currentPos = self.robot.getCurrentPos()
@@ -708,6 +816,10 @@ class NavMoveCtl(MoveCtl):
 
         self.pathIndex+=1
         return True
+
+    def __findCorner(self):
+        self.robot.setCurrentRoom(self.targetRoom)
+        self.robot.moveCtl = FindCornerCtl(self.robot, self.targetRoom['direction'])
 
     def __startSweep(self):
         self.robot.setCurrentRegion(self.targetRegion)
@@ -728,7 +840,7 @@ class NavMoveCtl(MoveCtl):
         else:
             firstSliceDirection = "E"
         
-        self.robot.stateText = "弓形清扫"
+        
         self.robot.moveCtl = ZigzagMoveCtl(self.robot,sweepDirection, \
             ifAlterSliceAtFirst = True, firstSliceDirection=firstSliceDirection)
 
@@ -767,19 +879,37 @@ class Robot():
         self.move()
 
     def checkProgress(self):
-        if self.map.ifFinished():
-            self.stateText = "清扫结束"
-            self.stopMove()
+        if not self.map.ifRoomFinished():
+            self.__navToNextRegion()
             return
+
+        if not self.map.ifFinished():
+            self.__navToNextRoom()
+            return 
+
+        self.stateText = "清扫结束"
+        self.stopMove()
+        return
         
+
+    def __navToNextRegion(self):
         # route = {'path':path, 'targetRegion':edge}
         route = self.map.getRouteToNextRegionBoundary()
-        
         self.stateText = "导航最近未清扫区域"
         self.moveCtl = NavMoveCtl(self, route)
 
+    def __navToNextRoom(self):
+        # route = {'path':path, 'targetRegion':edge}
+        route = self.map.getRouteToNextRoom()
+        self.stateText = "导航最近房间"
+        self.moveCtl = NavMoveCtl(self, route)
+
+
     def setCurrentRegion(self,region):
         self.map.setCurrentRegion(region)
+
+    def setCurrentRoom(self,room):
+        self.map.setCurrentRoom(room)
 
 
     def stopMove(self):
@@ -902,7 +1032,7 @@ class Env(Canvas):
     global ROBOT_SIZE
     global GAP
     WIDTH = 500 
-    HEIGHT = 300 
+    HEIGHT = 296 
 
     def __init__(self, parent, iniBackground):
         Canvas.__init__(self,parent,bd=3,relief=RIDGE,width=Env.WIDTH, height=Env.HEIGHT)
@@ -949,7 +1079,7 @@ class Env(Canvas):
                     self.totalArea+=1
     
 
-    # Range detected in (3 ~ 25). for convinience, the distance is calculated from center of robot
+    # Range detected in (3 ~ 50). for convinience, the distance is calculated from center of robot
     def getRangeData(self, robotPosition):
         MAX_RANGE = 50
         MIN_RANGE = int(ROBOT_SIZE/2)
