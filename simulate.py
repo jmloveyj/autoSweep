@@ -507,7 +507,7 @@ class ZigzagMoveCtl(MoveCtl):
         else:
             self.__act = self.__processSlice
             self.robot.currentDirection = firstSliceDirection
-            self.ifSliceDeadHead = False #这个slice是否空驶
+            self.ifSliceDeadHead = not self.__ifInCornerAtStart() #这个slice是否空驶
 
 
     def __ifInCornerAtStart(self):
