@@ -512,7 +512,6 @@ class ZigzagMoveCtl(MoveCtl):
 
     def __ifInCornerAtStart(self):
         range = self.robot.getRangeData()
-        if range['E']>range['W']:
 
         if(range[getConverseDirection(self.robot.currentDirection)]> GAP):
             return False
