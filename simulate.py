@@ -233,8 +233,62 @@ class Map(nx.Graph,Canvas):
         else:
             return distance2, edge[1] 
 
-    # a* 简洁算法
+  
     def __getPath(self, start, end):
+        return self.__briefGetPath(start,end)
+
+    # a*算法
+    def __aGetPath(self, start, end):
+        opened = {}
+        closed = {}
+
+        closed[start] = {'parent':None, 'C':0, 'H': calculateDistance(start,end)}
+
+        point = start 
+
+        while(point != end):
+            neighbourList = self.__getNeighbour(point)
+            for neighbourPoint in neighbourList:
+                if self.__ifBlock(neighbourPoint):
+                    continue
+                if closed.has_key(neighbourPoint):
+                    continue
+                c = closed[point]['C'] +1 
+                h = calculateDistance(neighbourPoint, end)
+
+                if opened.has_key(neighbourPoint):
+                    if (opened[neighbourPoint]['C'] + opened[neighbourPoint]['H']) > (c+h):
+                        opened[neighbourPoint]['C'] = c
+                        opened[neighbourPoint]['H'] = h
+                        opened[neighbourPoint]['parent'] = point
+                else:
+                    opened[neighbourPoint] = {}
+                    opened[neighbourPoint]['C'] = c
+                    opened[neighbourPoint]['H'] = h
+                    opened[neighbourPoint]['parent'] = point
+            
+            minF = 999
+            for item in opened:
+                F = opened[item]['C'] +opened[item]['H']
+                if minF >F:
+                    minF = F
+                    point = item
+
+            closed[point] ={}
+            closed[point] = opened[point]
+            del opened[point]
+
+        path =[]
+        point = end
+        while point:
+            path.insert(0,point)
+            point = closed[point]['parent']
+
+        return path
+
+
+    # a* 简洁算法
+    def __briefGetPath(self,start,end):
         path = []
         current = start
 
@@ -252,7 +306,7 @@ class Map(nx.Graph,Canvas):
                     continue
                  
 
-                weight = self.__calculateF(neighbourPoint, start, end)
+                weight = calculateDistance(neighbourPoint, end)
 
                 if( weight< F):
                     F = weight
@@ -262,6 +316,7 @@ class Map(nx.Graph,Canvas):
             path.append(current)
  
         return path
+
 
     def ifTouchBoundary(self,direction):
         robotPosition = (self.currentX, self.currentY)
