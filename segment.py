@@ -21,7 +21,7 @@ def prepareWindow(img, title, ifGray = False):
 
 
 # img = cv2.imread('modifiedMap.pgm')
-img = cv2.imread('room2.jpg')
+img = cv2.imread('multiRoom.pgm')
 
 gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
 ret, thresh = cv2.threshold(gray,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
@@ -34,11 +34,14 @@ kernel = np.ones((3,3),np.uint8)
 
 #提取出大块障碍物
 bigObstacle = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE,kernel, iterations=10)
+# bigObstacle = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE,kernel, iterations=1)
+
 prepareWindow(bigObstacle,"bigObstacle", True)
 
 #留下墙
 smallObstacle = cv2.bitwise_not(cv2.bitwise_xor(thresh, bigObstacle))
 smoothSmallObstacle = cv2.morphologyEx(smallObstacle, cv2.MORPH_CLOSE,kernel, iterations=5)
+# smoothSmallObstacle = cv2.morphologyEx(smallObstacle, cv2.MORPH_CLOSE,kernel, iterations=0)
 prepareWindow(smoothSmallObstacle,"smallObstacle", True)
 
 
@@ -47,6 +50,8 @@ dist_transform = cv2.distanceTransform(smoothSmallObstacle,cv2.DIST_L2 ,3)
 #离墙3像素认为是空白
 ret, fg = cv2.threshold(dist_transform,3,255,0)
 fg = cv2.morphologyEx(fg, cv2.MORPH_OPEN,kernel, iterations=50)
+# fg = cv2.morphologyEx(fg, cv2.MORPH_OPEN,kernel, iterations=10)
+
 prepareWindow(fg,"foreground", True)
 
 fg = np.uint8(fg)
@@ -67,9 +72,9 @@ markers[bg == 0] = 1
 prepareWindow(markers,"marker1", True)
 
 #分水岭
-markers = cv2.watershed(img,markers)
+result = cv2.watershed(img,markers)
 
 
-prepareWindow(markers,"result")
+prepareWindow(result,"result")
 
 plt.show()
