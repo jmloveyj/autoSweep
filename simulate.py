@@ -236,6 +236,8 @@ class Map(nx.Graph,Canvas):
   
     def __getPath(self, start, end):
         return self.__briefGetPath(start,end)
+        # return self.__aGetPath(start,end)
+        # return self.__dijkstraGetPath(start,end)
 
     # a*算法
     def __aGetPath(self, start, end):
@@ -287,7 +289,41 @@ class Map(nx.Graph,Canvas):
         return path
 
 
-    # a* 简洁算法
+    def __dijkstraGetPath(self,start,end):
+        closed = {}
+        opened ={}
+
+        opened[start] = {'parent':None}
+
+
+        while not (end in opened):
+            backupOpen ={}
+            for openitem in opened:
+                neighbourList = self.__getNeighbour(openitem)
+                for neighbourPoint in neighbourList:
+                    if self.__ifBlock(neighbourPoint):
+                        continue
+                    if closed.has_key(neighbourPoint):
+                        continue
+                    if opened.has_key(neighbourPoint):
+                        continue
+                    backupOpen[neighbourPoint] =  {'parent':openitem}
+                closed[openitem] = opened[openitem]
+            opened = backupOpen
+
+
+        path = [end]
+        point = opened[end]['parent']
+
+        while point:
+            path.insert(0,point)
+            point = closed[point]['parent']
+
+        return path
+
+
+
+    # 简洁算法
     def __briefGetPath(self,start,end):
         path = []
         current = start
